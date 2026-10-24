@@ -1,0 +1,10 @@
+{
+  "dns_port": 53,
+  "web_port": 8080,
+  "upstreams": ["1.1.1.1", "8.8.8.8"],
+  "dedupe_seconds": 45,
+  "retention_days": 30,
+  "session_hours": 12,
+  "login_max_attempts": 8,
+  "login_window_minutes": 10
+}

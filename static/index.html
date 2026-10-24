@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NetWatch — sites acessados na rede</title>
+<style>
+  :root{
+    --bg:#0a0e13; --panel:#111821; --panel-2:#0d141c;
+    --line:#1e2a36; --text:#e6edf5; --muted:#8296a8;
+    --accent:#38bdf8; --green:#34d399; --amber:#fbbf24; --red:#f87171;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:radial-gradient(1200px 600px at 15% -10%, #10202e 0%, var(--bg) 55%);
+    color:var(--text); font:14px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif;
+    min-height:100vh; padding:22px 20px 40px;
+  }
+  header{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:20px}
+  .logo{
+    width:38px;height:38px;border-radius:11px;display:grid;place-items:center;
+    background:linear-gradient(135deg,#0ea5e9,#22d3ee); color:#04121a; font-weight:800; font-size:16px;
+  }
+  h1{font-size:18px;margin:0;font-weight:650;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:12.5px}
+  .spacer{flex:1}
+  .pill{
+    display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;
+    background:var(--panel);border:1px solid var(--line);font-size:12.5px;color:var(--muted);
+    white-space:nowrap;
+  }
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(52,211,153,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.55)}70%{box-shadow:0 0 0 8px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+  .pill.bad .dot{background:var(--red);animation:none}
+
+  .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
+  .card{background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+  .card .label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px}
+  .card .value{font-size:27px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+  .card .hint{color:var(--muted);font-size:12px;margin-top:2px}
+
+  .grid{display:grid;grid-template-columns:minmax(0,2.1fr) minmax(260px,1fr);gap:14px;align-items:start}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .panel-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .panel-head h2{font-size:13px;margin:0;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:#b9cad9}
+  input[type=search],select{
+    background:#0a1118;border:1px solid var(--line);color:var(--text);
+    border-radius:9px;padding:7px 10px;font-size:13px;outline:none;
+  }
+  input[type=search]{flex:1;min-width:150px}
+  input[type=search]:focus,select:focus{border-color:#2b5a75;box-shadow:0 0 0 3px rgba(56,189,248,.12)}
+  .btn{
+    background:#12212e;border:1px solid var(--line);color:#cfe3f2;border-radius:9px;
+    padding:7px 11px;font-size:12.5px;cursor:pointer;text-decoration:none;white-space:nowrap;
+  }
+  .btn:hover{background:#17324a;border-color:#2b5a75}
+
+  .table-wrap{max-height:min(62vh,620px);overflow:auto}
+  table{width:100%;border-collapse:collapse;font-size:13.2px}
+  thead th{
+    position:sticky;top:0;background:#0e1620;color:var(--muted);text-align:left;
+    font-weight:600;font-size:11.5px;letter-spacing:.7px;text-transform:uppercase;
+    padding:9px 12px;border-bottom:1px solid var(--line);z-index:1;
+  }
+  tbody td{padding:8px 12px;border-bottom:1px solid #16202b;vertical-align:middle}
+  tbody tr:hover{background:#0f1922}
+  td.time{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;width:74px}
+  td.domain{font-family:"Cascadia Mono",Consolas,monospace;font-size:12.6px;word-break:break-all}
+  td.dev{white-space:nowrap;max-width:190px;overflow:hidden;text-overflow:ellipsis}
+  .dev-ip{color:var(--muted);font-size:11.5px;font-family:Consolas,monospace}
+  .tag{display:inline-block;padding:1px 6px;border-radius:5px;background:#132433;color:#7fb8d8;font-size:10.5px;border:1px solid #1d3a4e;margin-left:6px}
+  .empty{padding:40px 20px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.7}
+  .empty code{background:#0a1118;border:1px solid var(--line);border-radius:6px;padding:2px 6px;color:#9fd0ea}
+
+  .side{display:flex;flex-direction:column;gap:14px}
+  .list{padding:8px 6px 10px}
+  .row{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:9px}
+  .row:hover{background:#0f1922}
+  .row .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.8px}
+  .row .name small{color:var(--muted);display:block;font-size:11px;font-family:Consolas,monospace}
+  .row .num{color:#9fd0ea;font-variant-numeric:tabular-nums;font-size:12.3px;font-weight:600}
+  .bar{height:4px;border-radius:99px;background:#1b2733;overflow:hidden;margin-top:4px}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,#0ea5e9,#22d3ee)}
+  .edit{border:0;background:transparent;color:#4d6b82;cursor:pointer;font-size:13px;padding:2px 4px;border-radius:5px}
+  .edit:hover{color:var(--accent);background:#152430}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;width:100%}
+  .foot{color:#5d7387;font-size:11.8px;margin-top:16px;line-height:1.7}
+  .authbtns{display:flex;gap:8px;flex-wrap:wrap}
+  .modal{position:fixed;inset:0;background:rgba(3,7,11,.74);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:18px;z-index:50}
+  .modal[hidden]{display:none}
+  .modal-card{width:100%;max-width:840px;max-height:90vh;background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+  .modal-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .modal-head h2{font-size:12.5px;margin:0;letter-spacing:.5px;text-transform:uppercase;color:#b9cad9;flex:1;white-space:nowrap}
+  .modal-body{overflow:auto;padding:0}
+  .modal-body table{font-size:12.7px}
+  .act{font-weight:600;white-space:nowrap}
+  .act.ok{color:var(--green)} .act.bad{color:var(--red)} .act.info{color:#9fd0ea}
+  .ipcell{font-family:Consolas,monospace;font-size:12px;color:#a9c3d6;white-space:nowrap}
+  .uacell{color:#5d7387;font-size:11.5px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .field{margin:14px 16px 0}
+  .field label{display:block;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+  .field input{width:100%;padding:10px 11px;border-radius:9px;border:1px solid var(--line);background:#0a1118;color:var(--text);font-size:14px}
+  .modal-actions{display:flex;gap:8px;justify-content:flex-end;padding:14px 16px;border-top:1px solid var(--line);margin-top:16px;align-items:center}
+  .modal-msg{margin-right:auto;font-size:12.8px;min-height:17px}
+  .modal-msg.err{color:var(--red)} .modal-msg.ok{color:var(--green)}
+  @media (max-width:900px){
+    .grid{grid-template-columns:1fr;min-width:0}
+    .panel{min-width:0}
+    .cards{grid-template-columns:1fr 1fr}
+    .table-wrap{max-height:56vh}
+  }
+  @media (max-width:560px){
+    body{padding:14px 12px 30px;overflow-x:hidden}
+    .cards{grid-template-columns:1fr}
+    h1{font-size:16px}
+    .filters{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .filters input[type=search]{grid-column:1 / -1;min-width:0}
+    .filters .btn{text-align:center}
+    table{table-layout:fixed;width:100%}
+    thead th:nth-child(1),tbody td:nth-child(1){width:62px}
+    thead th:nth-child(2),tbody td:nth-child(2){width:96px}
+    thead th, tbody td{padding:8px 8px}
+    td.time{width:62px;font-size:12px}
+    td.dev{max-width:96px;font-size:12.2px}
+    td.dev .dev-ip{display:none}
+    td.domain{font-size:11.8px}
+    .card .value{font-size:23px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">N</div>
+  <div>
+    <h1>NetWatch</h1>
+    <div class="sub">Sites consultados na sua rede local · atualiza sozinho</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="pill" id="status"><span class="dot"></span><span id="statusText">conectando…</span></div>
+  <div class="pill" id="lanPill">DNS local: —</div>
+  <div class="pill" id="sessionPill" title="sua sessão">sessão · —</div>
+  <div class="authbtns">
+    <button class="btn" id="auditBtn">Auditoria</button>
+    <button class="btn" id="pwdBtn">Senha</button>
+    <button class="btn" id="logoutBtn">Sair</button>
+  </div>
+</header>
+
+<section class="cards">
+  <div class="card">
+    <div class="label">Consultas hoje</div>
+    <div class="value" id="statTotal">0</div>
+    <div class="hint" id="statRate">—</div>
+  </div>
+  <div class="card">
+    <div class="label">Domínios distintos</div>
+    <div class="value" id="statUnique">0</div>
+    <div class="hint">sites diferentes hoje</div>
+  </div>
+  <div class="card">
+    <div class="label">Dispositivos ativos</div>
+    <div class="value" id="statDevices">0</div>
+    <div class="hint">aparelhos usando este DNS</div>
+  </div>
+</section>
+
+<section class="grid">
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Registro ao vivo</h2>
+      <div class="filters">
+        <input type="search" id="search" placeholder="filtrar por site ou aparelho…" autocomplete="off">
+        <select id="deviceFilter"><option value="">todos os aparelhos</option></select>
+        <a class="btn" href="/api/export.csv">baixar CSV</a>
+      </div>
+    </div>
+    <div class="table-wrap" id="tableWrap">
+      <table>
+        <thead>
+          <tr><th>Hora</th><th>Aparelho</th><th>Site consultado</th></tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty" id="empty">
+        Nenhuma consulta registrada ainda.<br>
+        Aponte o DNS dos aparelhos (ou do roteador) para <code id="emptyIp">este PC</code> e navegue em algum site.
+      </div>
+    </div>
+  </div>
+
+  <aside class="side">
+    <div class="panel">
+      <div class="panel-head"><h2>Top sites hoje</h2></div>
+      <div class="list" id="topList"><div class="empty" style="padding:18px">sem dados ainda</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Aparelhos</h2></div>
+      <div class="list" id="devList"><div class="empty" style="padding:18px">sem dados ainda</div></div>
+    </div>
+  </aside>
+</section>
+
+<div class="modal" id="auditModal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2>Auditoria de acesso</h2>
+      <select id="auditFilter"><option value="">todas as ações</option></select>
+      <a class="btn" href="/api/audit.csv">baixar CSV</a>
+      <button class="btn" id="auditClose">fechar</button>
+    </div>
+    <div class="modal-body">
+      <table>
+        <thead><tr><th>Quando</th><th>IP</th><th>Ação</th><th>Detalhe</th><th>Dispositivo</th></tr></thead>
+        <tbody id="auditRows"></tbody>
+      </table>
+      <div class="empty" id="auditEmpty" style="display:none">nenhum evento de auditoria ainda</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="pwdModal" hidden>
+  <form class="modal-card" id="pwdForm" autocomplete="off" style="max-width:420px">
+    <div class="modal-head">
+      <h2>Trocar senha</h2>
+      <button class="btn" type="button" id="pwdClose">fechar</button>
+    </div>
+    <div class="field">
+      <label for="pwdCurrent">Senha atual</label>
+      <input type="password" id="pwdCurrent" autocomplete="current-password">
+    </div>
+    <div class="field">
+      <label for="pwdNew">Nova senha</label>
+      <input type="password" id="pwdNew" autocomplete="new-password" placeholder="mín. 8 caracteres, maiúscula, minúscula e número">
+    </div>
+    <div class="field">
+      <label for="pwdConfirm">Confirmar nova senha</label>
+      <input type="password" id="pwdConfirm" autocomplete="new-password">
+    </div>
+    <div class="modal-actions">
+      <span class="modal-msg" id="pwdMsg"></span>
+      <button class="btn" type="submit" id="pwdSave">salvar</button>
+    </div>
+  </form>
+</div>
+
+<div class="foot">
+  O NetWatch registra apenas <b>domínios</b> consultados via DNS — o conteúdo das páginas (HTTPS) não é inspecionado.
+  Use na sua própria rede e avise quem a utiliza.
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+// Qualquer 401 (sessão expirada/removida) volta para o login.
+const rawFetch = window.fetch.bind(window);
+window.fetch = async (...args) => {
+  const res = await rawFetch(...args);
+  if (res.status === 401) { location.href = '/login'; throw new Error('nao autenticado'); }
+  return res;
+};
+const rowsEl = $('rows'), emptyEl = $('empty'), tableWrap = $('tableWrap');
+const searchEl = $('search'), deviceEl = $('deviceFilter');
+let lastId = 0;
+let currentIp = '';
+let firstLoad = true;
+let pollTimer = null;
+
+function fmtTime(ts){
+  return new Date(ts * 1000).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+function timeAgo(ts){
+  const secs = Math.max(0, Math.round(Date.now()/1000 - ts));
+  if (secs < 60) return 'há ' + (secs < 5 ? 'instantes' : secs + 's');
+  if (secs < 3600) return 'há ' + Math.round(secs/60) + ' min';
+  return 'há ' + Math.round(secs/3600) + ' h';
+}
+
+function deviceLabel(d){
+  if (!d) return {main:'—', sub:''};
+  const main = d.name || d.host || d.ip;
+  const sub = (d.name || d.host) ? d.ip : '';
+  return {main, sub};
+}
+function esc(s){ return String(s ?? ''); }
+
+function buildRow(r){
+  const tr = document.createElement('tr');
+  const td1 = document.createElement('td');
+  td1.className = 'time'; td1.textContent = fmtTime(r.ts);
+
+  const td2 = document.createElement('td');
+  td2.className = 'dev';
+  const {main, sub} = deviceLabel(r);
+  td2.textContent = main;
+  td2.title = r.ip;
+  if (sub){
+    const s = document.createElement('span');
+    s.className = 'dev-ip'; s.textContent = ' · ' + sub;
+    td2.appendChild(s);
+  }
+
+  const td3 = document.createElement('td');
+  td3.className = 'domain';
+  td3.textContent = r.domain;
+  if (r.qtype && r.qtype !== 'A' && r.qtype !== 'AAAA'){
+    const t = document.createElement('span');
+    t.className = 'tag'; t.textContent = r.qtype;
+    td3.appendChild(t);
+  }
+  tr.append(td1, td2, td3);
+  return tr;
+}
+
+function trimRows(){
+  while (rowsEl.children.length > 400) rowsEl.removeChild(rowsEl.firstChild);
+}
+
+function setEmpty(){
+  emptyEl.style.display = rowsEl.children.length ? 'none' : 'block';
+}
+
+async function loadLogs(reset=false){
+  const params = new URLSearchParams({limit: reset ? '250' : '250'});
+  if (!reset && lastId) params.set('after_id', String(lastId));
+  const q = searchEl.value.trim(); if (q) params.set('q', q);
+  if (deviceEl.value) params.set('ip', deviceEl.value);
+
+  const res = await fetch('/api/logs?' + params.toString());
+  if (!res.ok) throw new Error('http ' + res.status);
+  const data = await res.json();
+
+  if (reset){
+    rowsEl.innerHTML = '';
+    lastId = 0;
+    for (const r of data.rows){ rowsEl.appendChild(buildRow(r)); lastId = Math.max(lastId, r.id); }
+    tableWrap.scrollTop = tableWrap.scrollHeight;
+  } else {
+    const nearBottom = tableWrap.scrollHeight - tableWrap.scrollTop - tableWrap.clientHeight < 90;
+    let added = 0;
+    for (const r of data.rows){
+      lastId = Math.max(lastId, r.id);
+      if (r.id <= Number(lastId) - 0) { /* no-op */ }
+      rowsEl.appendChild(buildRow(r)); added++;
+    }
+    if (added){ trimRows(); if (nearBottom) tableWrap.scrollTop = tableWrap.scrollHeight; }
+  }
+  setEmpty();
+}
+
+function renderTop(list){
+  const el = $('topList');
+  el.innerHTML = '';
+  if (!list.length){ el.innerHTML = '<div class="empty" style="padding:18px">sem dados ainda</div>'; return; }
+  const max = Math.max(...list.map(x => x.hits), 1);
+  for (const item of list){
+    const row = document.createElement('div'); row.className = 'row';
+    const wrap = document.createElement('div'); wrap.className = 'name';
+    wrap.textContent = item.domain;
+    const bar = document.createElement('div'); bar.className = 'bar';
+    const fill = document.createElement('i'); fill.style.width = Math.max(4, (item.hits/max)*100) + '%';
+    bar.appendChild(fill); wrap.appendChild(bar);
+    const num = document.createElement('div'); num.className = 'num'; num.textContent = item.hits;
+    row.append(wrap, num); el.appendChild(row);
+  }
+}
+
+function renderDevices(list, total){
+  const el = $('devList');
+  el.innerHTML = '';
+  const previous = deviceEl.value;
+  deviceEl.innerHTML = '<option value="">todos os aparelhos</option>';
+  if (!list.length){ el.innerHTML = '<div class="empty" style="padding:18px">sem dados ainda</div>'; return; }
+
+  for (const d of list){
+    const row = document.createElement('div'); row.className = 'row';
+    const wrap = document.createElement('div'); wrap.className = 'name';
+    wrap.textContent = d.name || d.host || d.ip;
+    const small = document.createElement('small');
+    small.textContent = (d.name || d.host) ? d.ip : (d.last_seen ? 'visto ' + fmtTime(d.last_seen) : '');
+    if (small.textContent) wrap.appendChild(small);
+
+    const num = document.createElement('div'); num.className = 'num'; num.textContent = d.hits;
+
+    const edit = document.createElement('button');
+    edit.className = 'edit'; edit.title = 'renomear aparelho'; edit.textContent = '✎';
+    edit.onclick = async () => {
+      const name = prompt('Nome para este aparelho (' + d.ip + '):', d.name || '');
+      if (name === null) return;
+      await fetch('/api/devices/name', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ip: d.ip, name})
+      });
+      refreshStats();
+      loadLogs(true);
+    };
+
+    row.append(wrap, num, edit);
+    el.appendChild(row);
+
+    const opt = document.createElement('option');
+    opt.value = d.ip;
+    opt.textContent = (d.name || d.host || d.ip) + ' (' + d.hits + ')';
+    deviceEl.appendChild(opt);
+  }
+  if (previous){ deviceEl.value = previous; if (!deviceEl.value) { deviceEl.value = ''; } }
+}
+
+function renderInfo(info){
+  if (!info) return;
+  $('lanPill').textContent = 'DNS local: ' + (info.lan_ip || '—') + (info.dns_port ? ':' + info.dns_port : '');
+  $('emptyIp').textContent = (info.lan_ip || 'este PC') + (info.dns_port ? ':' + info.dns_port : '');
+}
+
+async function refreshStats(){
+  const res = await fetch('/api/stats');
+  if (!res.ok) throw new Error('http ' + res.status);
+  const s = await res.json();
+  $('statTotal').textContent = s.today_total.toLocaleString('pt-BR');
+  $('statUnique').textContent = s.today_unique.toLocaleString('pt-BR');
+  $('statDevices').textContent = s.today_devices.toLocaleString('pt-BR');
+  $('statRate').textContent = s.last_query_ts ? 'última ' + timeAgo(s.last_query_ts) : 'aguardando tráfego';
+  renderTop(s.top_domains || []);
+  renderDevices(s.devices || [], s.today_total || 0);
+  setStatus(true);
+}
+
+function setStatus(ok){
+  const pill = $('status');
+  pill.classList.toggle('bad', !ok);
+  $('statusText').textContent = ok ? 'monitorando ao vivo' : 'painel desconectado';
+}
+
+async function tick(){
+  try { await loadLogs(false); setStatus(true); }
+  catch(e){ setStatus(false); }
+}
+
+async function boot(){
+  try {
+    const info = await (await fetch('/api/info')).json();
+    renderInfo(info);
+    currentIp = info.lan_ip || '';
+  } catch(e){}
+  await loadLogs(true).catch(()=>{});
+  await refreshStats().catch(()=>setStatus(false));
+  setInterval(tick, 2500);
+  setInterval(() => refreshStats().catch(()=>setStatus(false)), 6000);
+}
+
+let searchTimer = null;
+searchEl.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => loadLogs(true), 300);
+});
+deviceEl.addEventListener('change', () => loadLogs(true));
+
+/* ------------------------------------------------------------------ sessão */
+
+async function loadSession(){
+  try {
+    const s = await (await fetch('/api/session')).json();
+    $('sessionPill').textContent = 'sessão · ' + s.ip;
+    $('sessionPill').title = 'Sessão iniciada em ' + fmtDT(s.since) + (s.https ? ' · HTTPS' : ' · HTTP local');
+  } catch (e) { /* silencioso */ }
+}
+
+function fmtDT(ts){
+  return new Date(ts * 1000).toLocaleString('pt-BR', {
+    day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit'
+  });
+}
+
+/* ------------------------------------------------------------------ auditoria */
+
+const ACTION_LABELS = {
+  login_ok: ['Login', 'ok'],
+  login_fail: ['Senha incorreta', 'bad'],
+  login_bloqueado: ['Bloqueado', 'bad'],
+  senha_alterada_falha: ['Falha ao trocar senha', 'bad'],
+  dados_apagados: ['Histórico apagado', 'bad'],
+  logout: ['Logout', 'info'],
+  painel_aberto: ['Painel aberto', 'info'],
+  log_exportado: ['Log exportado', 'info'],
+  auditoria_exportada: ['Auditoria exportada', 'info'],
+  aparelho_renomeado: ['Aparelho renomeado', 'info'],
+  senha_alterada: ['Senha alterada', 'info']
+};
+
+function shortUA(ua){
+  return (ua || '').replace(/\s+/g, ' ').slice(0, 46);
+}
+
+async function loadAudit(){
+  const action = $('auditFilter').value;
+  const url = '/api/audit?limit=200' + (action ? '&action=' + encodeURIComponent(action) : '');
+  const data = await (await fetch(url)).json();
+
+  const filter = $('auditFilter');
+  const current = filter.value;
+  filter.innerHTML = '<option value="">todas as ações</option>';
+  for (const a of (data.actions || [])){
+    const opt = document.createElement('option');
+    opt.value = a.action;
+    const label = (ACTION_LABELS[a.action] || [a.action])[0];
+    opt.textContent = label + ' (' + a.total + ')';
+    filter.appendChild(opt);
+  }
+  filter.value = current;
+
+  const body = $('auditRows');
+  body.innerHTML = '';
+  for (const r of (data.rows || [])){
+    const [label, kind] = ACTION_LABELS[r.action] || [r.action, 'info'];
+    const tr = document.createElement('tr');
+
+    const td1 = document.createElement('td');
+    td1.className = 'time'; td1.style.width = '118px'; td1.textContent = fmtDT(r.ts);
+
+    const td2 = document.createElement('td');
+    td2.className = 'ipcell'; td2.textContent = r.ip || '—';
+
+    const td3 = document.createElement('td');
+    td3.className = 'act ' + kind; td3.textContent = label;
+
+    const td4 = document.createElement('td');
+    td4.textContent = r.detail || '';
+
+    const td5 = document.createElement('td');
+    td5.className = 'uacell'; td5.textContent = shortUA(r.user_agent); td5.title = r.user_agent || '';
+
+    tr.append(td1, td2, td3, td4, td5);
+    body.appendChild(tr);
+  }
+  $('auditEmpty').style.display = (data.rows || []).length ? 'none' : 'block';
+}
+
+let auditTimer = null;
+
+$('auditBtn').addEventListener('click', () => {
+  $('auditModal').hidden = false;
+  loadAudit().catch(() => {});
+  clearInterval(auditTimer);
+  auditTimer = setInterval(() => loadAudit().catch(() => {}), 5000);
+});
+
+$('auditClose').addEventListener('click', () => {
+  $('auditModal').hidden = true;
+  clearInterval(auditTimer);
+});
+
+$('auditFilter').addEventListener('change', () => loadAudit().catch(() => {}));
+
+/* ------------------------------------------------------------------ senha */
+
+$('pwdBtn').addEventListener('click', () => {
+  $('pwdMsg').textContent = '';
+  $('pwdMsg').className = 'modal-msg';
+  $('pwdForm').reset();
+  $('pwdModal').hidden = false;
+  $('pwdCurrent').focus();
+});
+
+$('pwdClose').addEventListener('click', () => { $('pwdModal').hidden = true; });
+
+$('pwdForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = $('pwdMsg');
+  msg.className = 'modal-msg';
+  msg.textContent = '';
+
+  const current = $('pwdCurrent').value;
+  const next = $('pwdNew').value;
+  const confirm = $('pwdConfirm').value;
+
+  if (next !== confirm){
+    msg.className = 'modal-msg err';
+    msg.textContent = 'A confirmação não confere.';
+    return;
+  }
+
+  $('pwdSave').disabled = true;
+  try {
+    const res = await fetch('/api/password', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({current, new: next})
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok){
+      msg.className = 'modal-msg ok';
+      msg.textContent = 'Senha atualizada.';
+      setTimeout(() => { $('pwdModal').hidden = true; }, 1200);
+    } else {
+      msg.className = 'modal-msg err';
+      msg.textContent = data.error || 'Não foi possível salvar.';
+    }
+  } catch (err){
+    msg.className = 'modal-msg err';
+    msg.textContent = 'Falha de conexão.';
+  } finally {
+    $('pwdSave').disabled = false;
+  }
+});
+
+/* ------------------------------------------------------------------ sair */
+
+$('logoutBtn').addEventListener('click', async () => {
+  try { await fetch('/api/logout', { method:'POST' }); } catch (e) {}
+  location.href = '/login';
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape'){
+    $('auditModal').hidden = true;
+    $('pwdModal').hidden = true;
+    clearInterval(auditTimer);
+  }
+});
+
+/* ------------------------------------------------------------------ boot */
+
+async function boot(){
+  try {
+    const info = await (await fetch('/api/info')).json();
+    renderInfo(info);
+    currentIp = info.lan_ip || '';
+  } catch(e){}
+  loadSession();
+  if (location.hash === '#auditoria') $('auditBtn').click();
+  await loadLogs(true).catch(()=>{});
+  await refreshStats().catch(()=>setStatus(false));
+  setInterval(tick, 2500);
+  setInterval(() => refreshStats().catch(()=>setStatus(false)), 6000);
+}
+
+boot();
+</script>
+</body>
+</html>

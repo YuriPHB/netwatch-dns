@@ -1,0 +1,28 @@
+# Arquivos locais e sensíveis — nunca versionar
+netwatch.db
+netwatch*.db
+netwatch*.db-wal
+netwatch*.db-shm
+
+# Segredos / certificados
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
